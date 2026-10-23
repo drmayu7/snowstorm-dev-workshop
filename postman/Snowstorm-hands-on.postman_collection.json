@@ -1,0 +1,2386 @@
+{
+  "info": {
+    "_postman_id": "48f3bfe1-932b-53a0-8661-f0807debfeda",
+    "name": "Snowstorm hands-on (api-test.mysnomed.com)",
+    "description": "Hands-on requests for the Snowstorm developer workshop. Select the environment 'api-test.mysnomed.com', put the password you were given in its Current value, then send requests one at a time. The whole room shares one public IP and the server rate-limits per IP: do not use the Collection Runner.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "basic",
+    "basic": [
+      {
+        "key": "username",
+        "value": "{{username}}",
+        "type": "string"
+      },
+      {
+        "key": "password",
+        "value": "{{password}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// FHIR endpoints only: the native API answers 500 to a FHIR Accept header.",
+          "if (pm.request.url.getPath().startsWith('/fhir')) {",
+          "  pm.request.headers.upsert({ key: 'Accept', value: 'application/fhir+json' });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "item": [
+    {
+      "name": "0 \u00b7 Check you are connected",
+      "description": "Run these first. A 401 means the environment is not selected or the password is missing.",
+      "item": [
+        {
+          "name": "0.1 Server version",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/version",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "version"
+              ],
+              "query": []
+            },
+            "description": "Native API. Expect Snowstorm 10.12.2."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('has a version', () => pm.expect(pm.response.json().version).to.be.a('string'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "0.2 Code systems on the server (native)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/codesystems",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "codesystems"
+              ],
+              "query": []
+            },
+            "description": "SNOMEDCT (International) and SNOMEDCT-LOINCEXT (LOINC extension)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "0.3 Code systems (FHIR)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/CodeSystem",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "CodeSystem"
+              ],
+              "query": []
+            },
+            "description": "Every CodeSystem the FHIR API knows: two SNOMED editions plus the KKM facility CodeSystem."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1 \u00b7 Look up a code ($lookup)",
+      "description": "What does a code mean? Display, version, properties.",
+      "item": [
+        {
+          "name": "1.1 Paracetamol 500 mg tablet",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/CodeSystem/$lookup?system={{sct}}&code=322236009",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "CodeSystem",
+                "$lookup"
+              ],
+              "query": [
+                {
+                  "key": "system",
+                  "value": "{{sct}}"
+                },
+                {
+                  "key": "code",
+                  "value": "322236009"
+                }
+              ]
+            },
+            "description": "Read display, version and the inactive flag. The display is US English by default."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const p = pm.response.json().parameter.find(x => x.name === 'display'); pm.test('display returned', () => pm.expect(p).to.exist);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.2 Same code, British English display",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/CodeSystem/$lookup?system={{sct}}&code=322236009&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "CodeSystem",
+                "$lookup"
+              ],
+              "query": [
+                {
+                  "key": "system",
+                  "value": "{{sct}}"
+                },
+                {
+                  "key": "code",
+                  "value": "322236009"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "displayLanguage=en-GB gives 'Paracetamol 500 mg oral tablet'. Prefer it to the Accept-Language header on this server: the gateway cache does not key on that header."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('GB display', () => pm.expect(pm.response.json().parameter.find(x => x.name === 'display').valueString).to.match(/Paracetamol/));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "1.3 Ask for the parent concepts",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/CodeSystem/$lookup?system={{sct}}&code=322236009&property=parent",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "CodeSystem",
+                "$lookup"
+              ],
+              "query": [
+                {
+                  "key": "system",
+                  "value": "{{sct}}"
+                },
+                {
+                  "key": "code",
+                  "value": "322236009"
+                },
+                {
+                  "key": "property",
+                  "value": "parent"
+                }
+              ]
+            },
+            "description": "Each parent comes back as a property with code 'parent'."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2 \u00b7 Search inside a value set ($expand)",
+      "description": "Type-ahead search, counting, ECL. ECL goes in the url parameter, URL-encoded.",
+      "item": [
+        {
+          "name": "2.1 Type-ahead: medicinal products matching 'parac'",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/<<763158003&filter=parac&count=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<<763158003"
+                },
+                {
+                  "key": "filter",
+                  "value": "parac"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "<< means descendants or self. Postman encodes it for you; in curl or a hand-built URL write %3C%3C. count sets the page size."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 1', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.2 Two letters find nothing",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/<<763158003&filter=pa&count=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<<763158003"
+                },
+                {
+                  "key": "filter",
+                  "value": "pa"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Our gateway blanks SNOMED filters shorter than 3 characters: an empty 200, not an error."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('empty by design', () => pm.expect(pm.response.json().expansion.total).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.3 Count every paracetamol-containing product",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/<<90332006&count=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<<90332006"
+                },
+                {
+                  "key": "count",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Read expansion.total. Use count=1, not 0: count=0 is a 500 on Snowstorm 10.12.2."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 100', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(100));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.4 ECL refinement: has active ingredient paracetamol",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/< 763158003 |Medicinal product| : 127489000 |Has active ingredient| = 387517004 |Paracetamol|&count=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/< 763158003 |Medicinal product| : 127489000 |Has active ingredient| = 387517004 |Paracetamol|"
+                },
+                {
+                  "key": "count",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "< 763158003 |Medicinal product| : 127489000 |Has active ingredient| = 387517004 |Paracetamol|. The |terms| are comments: Snowstorm does not check them against the codes."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 100', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(100));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.5 isa shortcut: substances matching 'amoxicillin'",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=isa/105590001&filter=amoxicillin&count=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=isa/105590001"
+                },
+                {
+                  "key": "filter",
+                  "value": "amoxicillin"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "isa/<code> is the FHIR shorthand for << <code>, with nothing to encode."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 1', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "2.6 Page 2 of the type-ahead",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/<<763158003&filter=parac&count=10&offset=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<<763158003"
+                },
+                {
+                  "key": "filter",
+                  "value": "parac"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                },
+                {
+                  "key": "offset",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "offset must be a multiple of count."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3 \u00b7 Is this code allowed here? ($validate-code)",
+      "description": "What a form or an API checks before saving a code.",
+      "item": [
+        {
+          "name": "3.1 A clinical drug in the medicinal product value set",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$validate-code?url={{sct}}?fhir_vs=ecl/<<763158003&system={{sct}}&code=322236009",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$validate-code"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<<763158003"
+                },
+                {
+                  "key": "system",
+                  "value": "{{sct}}"
+                },
+                {
+                  "key": "code",
+                  "value": "322236009"
+                }
+              ]
+            },
+            "description": "result = true."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('valid', () => pm.expect(pm.response.json().parameter.find(x => x.name === 'result').valueBoolean).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "3.2 A substance in the same value set",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$validate-code?url={{sct}}?fhir_vs=ecl/<<763158003&system={{sct}}&code=387517004",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$validate-code"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<<763158003"
+                },
+                {
+                  "key": "system",
+                  "value": "{{sct}}"
+                },
+                {
+                  "key": "code",
+                  "value": "387517004"
+                }
+              ]
+            },
+            "description": "result = false, with a message."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('not valid', () => pm.expect(pm.response.json().parameter.find(x => x.name === 'result').valueBoolean).to.be.false);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4 \u00b7 Inactive codes and their replacements",
+      "description": "Every release inactivates codes that records already hold.",
+      "item": [
+        {
+          "name": "4.1 Look up an inactive code",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/CodeSystem/$lookup?system={{sct}}&code=373988004",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "CodeSystem",
+                "$lookup"
+              ],
+              "query": [
+                {
+                  "key": "system",
+                  "value": "{{sct}}"
+                },
+                {
+                  "key": "code",
+                  "value": "373988004"
+                }
+              ]
+            },
+            "description": "Alprazolam 0.25mg tablet: inactive = true."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('inactive', () => pm.expect(pm.response.json().parameter.find(x => x.name === 'inactive').valueBoolean).to.be.true);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.2 Find what replaced it ($translate, SAME AS)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ConceptMap/$translate?url={{sct}}?fhir_cm=900000000000527005&system={{sct}}&code=373988004",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ConceptMap",
+                "$translate"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_cm=900000000000527005"
+                },
+                {
+                  "key": "system",
+                  "value": "{{sct}}"
+                },
+                {
+                  "key": "code",
+                  "value": "373988004"
+                }
+              ]
+            },
+            "description": "900000000000527005 is the SAME AS association reference set. Expect 321241004."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('replacement 321241004', () => pm.expect(pm.response.text()).to.include('321241004'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "4.3 An inactive code inside ECL",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/<<373988004&count=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<<373988004"
+                },
+                {
+                  "key": "count",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "200 with total 0, not an error. This is why value sets need a minimum-size check after each release."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('empty, silently', () => pm.expect(pm.response.json().expansion.total).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5 \u00b7 Local content: KKM health facilities",
+      "description": "A non-SNOMED CodeSystem and stored ValueSets served from the same FHIR API.",
+      "item": [
+        {
+          "name": "5.1 Find the stored value sets by name",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet?name=arpkkm&_summary=true",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet"
+              ],
+              "query": [
+                {
+                  "key": "name",
+                  "value": "arpkkm"
+                },
+                {
+                  "key": "_summary",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Name search is a prefix match on the ValueSet name."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.2 Hospitals matching 'kuala'",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{kkm}}/ValueSet/arp-kkm-facility-hospitals&filter=kuala&count=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{kkm}}/ValueSet/arp-kkm-facility-hospitals"
+                },
+                {
+                  "key": "filter",
+                  "value": "kuala"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "Facility filters work from 2 letters."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 1', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "5.3 Look up Hospital Kuala Lumpur",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/CodeSystem/$lookup?system={{kkm}}/CodeSystem/arp-kkm-facility&code=11-14010002",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "CodeSystem",
+                "$lookup"
+              ],
+              "query": [
+                {
+                  "key": "system",
+                  "value": "{{kkm}}/CodeSystem/arp-kkm-facility"
+                },
+                {
+                  "key": "code",
+                  "value": "11-14010002"
+                }
+              ]
+            },
+            "description": "Properties: state, district, type, sector."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "const p = pm.response.json().parameter.find(x => x.name === 'display'); pm.test('display returned', () => pm.expect(p).to.exist);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6 \u00b7 The native SNOMED API",
+      "description": "What the SNOMED CT browser uses. Richer, but specific to Snowstorm: prefer FHIR in applications.",
+      "item": [
+        {
+          "name": "6.1 Concept search by term",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/MAIN/concepts?term=paracetamol&activeFilter=true&limit=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "MAIN",
+                "concepts"
+              ],
+              "query": [
+                {
+                  "key": "term",
+                  "value": "paracetamol"
+                },
+                {
+                  "key": "activeFilter",
+                  "value": "true"
+                },
+                {
+                  "key": "limit",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "Returns fsn and pt for each match."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6.2 Everything about one concept",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/browser/MAIN/concepts/322236009",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "browser",
+                "MAIN",
+                "concepts",
+                "322236009"
+              ],
+              "query": []
+            },
+            "description": "Descriptions, relationships (the drug model: ingredient, strength, dose form) in one call."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "6.3 ECL on the native API",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/MAIN/concepts?ecl=<<90332006&limit=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "MAIN",
+                "concepts"
+              ],
+              "query": [
+                {
+                  "key": "ecl",
+                  "value": "<<90332006"
+                },
+                {
+                  "key": "limit",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Same ECL, native response: read total."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7 \u00b7 Pitfalls (deliberately wrong)",
+      "description": "Each of these fails quietly or loudly. Know the symptom.",
+      "item": [
+        {
+          "name": "7.1 _count is not the page size",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/<<90332006&_count=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<<90332006"
+                },
+                {
+                  "key": "_count",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "Returns all 385, not 5. Use count."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7.2 count=0 is a server error",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/<<90332006&count=0",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<<90332006"
+                },
+                {
+                  "key": "count",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "HAPI-0389 / by zero on Snowstorm 10.12.2. Use count=1 and read total."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('500 by design', () => pm.response.to.have.status(500));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "7.3 Accept-Language: * breaks SNOMED requests",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept-Language",
+                "value": "*"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/CodeSystem/$lookup?system={{sct}}&code=387517004&nocache={{$timestamp}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "CodeSystem",
+                "$lookup"
+              ],
+              "query": [
+                {
+                  "key": "system",
+                  "value": "{{sct}}"
+                },
+                {
+                  "key": "code",
+                  "value": "387517004"
+                },
+                {
+                  "key": "nocache",
+                  "value": "{{$timestamp}}"
+                }
+              ]
+            },
+            "description": "Node's fetch sends this header by default. Snowstorm answers 500; send en or en-GB instead."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('500 by design', () => pm.response.to.have.status(500));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8 \u00b7 Pharmacy examples",
+      "description": "For pharmacists and prescribing screens. Clinical drugs (CD) are the products a prescriber picks: in the International drug model they are the products with a 762949000 |Has precise active ingredient|. displayLanguage=en-GB gives British names (paracetamol, not acetaminophen).",
+      "item": [
+        {
+          "name": "8.1 Prescribing search: clinical drugs matching 'amlodipine'",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/< 763158003 : 762949000 = *&filter=amlodipine&count=10&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/< 763158003 : 762949000 = *"
+                },
+                {
+                  "key": "filter",
+                  "value": "amlodipine"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "Clinical drugs only (no 'amlodipine-containing product' groupers). Expect 79."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 1', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8.2 Every clinical drug containing amoxicillin",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/< 763158003 : 762949000 = 372687004 |Amoxicillin|&count=10&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/< 763158003 : 762949000 = 372687004 |Amoxicillin|"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "Includes the co-amoxiclav combinations. Expect 30."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total is 30', () => pm.expect(pm.response.json().expansion.total).to.eql(30));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8.3 Paracetamol oral tablets only",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/< 763158003 : 762949000 = 387517004 |Paracetamol|, 411116001 |Has manufactured dose form| = 421026006 |Oral tablet|&count=10&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/< 763158003 : 762949000 = 387517004 |Paracetamol|, 411116001 |Has manufactured dose form| = 421026006 |Oral tablet|"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "Two refinements joined by a comma mean AND. Expect 94, single and combination products."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total is 94', () => pm.expect(pm.response.json().expansion.total).to.eql(94));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8.4 The salt trap: warfarin clinical drugs by base substance",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/< 763158003 : 762949000 = 372756006 |Warfarin|&count=10&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/< 763158003 : 762949000 = 372756006 |Warfarin|"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "0 results. Clinical drugs record the precise ingredient, which is the salt: warfarin SODIUM. A silent empty answer, not an error."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total is 0', () => pm.expect(pm.response.json().expansion.total).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8.5 The fix: include salts with 'Is modification of'",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/< 763158003 : 762949000 = (<< 372756006 |Warfarin| OR (< 105590001 : 738774007 |Is modification of| = 372756006 |Warfarin|))&count=10&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/< 763158003 : 762949000 = (<< 372756006 |Warfarin| OR (< 105590001 : 738774007 |Is modification of| = 372756006 |Warfarin|))"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "Warfarin itself OR any substance that is a modification of warfarin. Expect 11."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total is 11', () => pm.expect(pm.response.json().expansion.total).to.eql(11));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8.6 Every product containing any penicillin (drug class)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/< 763158003 : 127489000 |Has active ingredient| = << 764146007 |Penicillin|&count=10&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/< 763158003 : 127489000 |Has active ingredient| = << 764146007 |Penicillin|"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "<< on the attribute value takes in every penicillin substance. Product level (MP and MPF). Expect 145."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 100', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(100));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8.7 Allergy picker: substances matching 'penicillin'",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/<< 105590001 |Substance|&filter=penicillin&count=10&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<< 105590001 |Substance|"
+                },
+                {
+                  "key": "filter",
+                  "value": "penicillin"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "Allergies are usually recorded against a substance. Expect 23."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 1', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8.8 Every 'allergy to a penicillin' condition",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/< 420134006 |Propensity to adverse reaction| : 246075003 |Causative agent| = << 764146007 |Penicillin|&count=10&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/< 420134006 |Propensity to adverse reaction| : 246075003 |Causative agent| = << 764146007 |Penicillin|"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "Useful for a cross-check: does a patient's allergy list mention any penicillin? Expect 26."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 20', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(20));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8.9 Everything SNOMED records as caused by amoxicillin",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/< 404684003 |Clinical finding| : 246075003 |Causative agent| = 372687004 |Amoxicillin|&count=10&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/< 404684003 |Clinical finding| : 246075003 |Causative agent| = 372687004 |Amoxicillin|"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "Allergy, adverse reaction and overdose. Expect 3."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total is 3', () => pm.expect(pm.response.json().expansion.total).to.eql(3));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8.10 Dose forms matching 'tablet'",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/<< 736542009 |Pharmaceutical dose form|&filter=tablet&count=10&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<< 736542009 |Pharmaceutical dose form|"
+                },
+                {
+                  "key": "filter",
+                  "value": "tablet"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "Expect 32."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 1', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8.11 Routes of administration",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/<< 284009009 |Route of administration value|&filter=oral&count=10&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<< 284009009 |Route of administration value|"
+                },
+                {
+                  "key": "filter",
+                  "value": "oral"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "Expect the oral route."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 1', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8.12 Units of presentation",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/<< 732935002 |Unit of presentation|&count=60&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<< 732935002 |Unit of presentation|"
+                },
+                {
+                  "key": "count",
+                  "value": "60"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "Tablet, capsule, vial... Expect 59."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 1', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "8.13 A clinical drug's full definition (open Visualize)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/browser/MAIN/concepts/322236009",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "browser",
+                "MAIN",
+                "concepts",
+                "322236009"
+              ],
+              "query": []
+            },
+            "description": "Native API. The test script turns the inferred relationships into a table: dose form, unit of presentation, precise active ingredient, basis of strength, strength numerator and denominator."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "// Open the Visualize tab in the response pane to see the drug's definition as a table.",
+                  "const c = pm.response.json();",
+                  "const rows = (c.relationships || [])",
+                  "  .filter(r => r.active && r.characteristicType === 'INFERRED_RELATIONSHIP' && r.type.conceptId !== '116680003')",
+                  "  .map(r => ({ group: r.groupId, attribute: r.type.pt.term,",
+                  "               value: r.concreteValue ? r.concreteValue.value : (r.target ? r.target.pt.term : '') }))",
+                  "  .sort((a, b) => a.group - b.group);",
+                  "pm.visualizer.set(`<h3>{{fsn}}</h3><table border='1' cellpadding='5' style='border-collapse:collapse'>",
+                  "<tr><th>Group</th><th>Attribute</th><th>Value</th></tr>",
+                  "{{#each rows}}<tr><td>{{group}}</td><td>{{attribute}}</td><td>{{value}}</td></tr>{{/each}}</table>`,",
+                  "  { fsn: c.fsn.term, rows });",
+                  "pm.test('defines its precise active ingredient', () =>",
+                  "  pm.expect(rows.map(r => r.attribute)).to.include('Has precise active ingredient'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "9 \u00b7 Clinical examples: diagnosis, findings, procedures",
+      "description": "For clinical forms: diagnosis and problem lists, symptoms, procedures, body sites, observations, and the SNOMED to ICD-10 map used for morbidity reporting.",
+      "item": [
+        {
+          "name": "9.1 Diagnosis picker: diseases matching 'type 2 diab'",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/<< 64572001 |Disease|&filter=type 2 diab&count=10&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<< 64572001 |Disease|"
+                },
+                {
+                  "key": "filter",
+                  "value": "type 2 diab"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "Word-prefix matching in any order. Expect 134."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 1', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.2 Symptoms and findings matching 'chest pain'",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/<< 404684003 |Clinical finding|&filter=chest pain&count=10&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<< 404684003 |Clinical finding|"
+                },
+                {
+                  "key": "filter",
+                  "value": "chest pain"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "Clinical finding includes symptoms and signs as well as disorders. Expect 38."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 1', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.3 Is hypertension a valid diagnosis?",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$validate-code?url={{sct}}?fhir_vs=ecl/<< 64572001 |Disease|&system={{sct}}&code=38341003",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$validate-code"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<< 64572001 |Disease|"
+                },
+                {
+                  "key": "system",
+                  "value": "{{sct}}"
+                },
+                {
+                  "key": "code",
+                  "value": "38341003"
+                }
+              ]
+            },
+            "description": "38341003 |Hypertensive disorder| in the Disease value set: true."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('result is true', () => pm.expect(pm.response.json().parameter.find(x => x.name === 'result').valueBoolean).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.4 Is chest pain a valid diagnosis?",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$validate-code?url={{sct}}?fhir_vs=ecl/<< 64572001 |Disease|&system={{sct}}&code=29857009",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$validate-code"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<< 64572001 |Disease|"
+                },
+                {
+                  "key": "system",
+                  "value": "{{sct}}"
+                },
+                {
+                  "key": "code",
+                  "value": "29857009"
+                }
+              ]
+            },
+            "description": "29857009 |Chest pain| is a finding, not a disease: false. Decide per field which hierarchy you allow."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('result is false', () => pm.expect(pm.response.json().parameter.find(x => x.name === 'result').valueBoolean).to.eql(false));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.5 Parents and children of type 2 diabetes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/CodeSystem/$lookup?system={{sct}}&code=44054006&property=parent&property=child&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "CodeSystem",
+                "$lookup"
+              ],
+              "query": [
+                {
+                  "key": "system",
+                  "value": "{{sct}}"
+                },
+                {
+                  "key": "code",
+                  "value": "44054006"
+                },
+                {
+                  "key": "property",
+                  "value": "parent"
+                },
+                {
+                  "key": "property",
+                  "value": "child"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "Each parent and child comes back as a property: one level of the hierarchy."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('has children', () => pm.expect(pm.response.text()).to.include('\"child\"'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.6 Every kind of diabetes mellitus",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/< 73211009 |Diabetes mellitus|&count=1&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/< 73211009 |Diabetes mellitus|"
+                },
+                {
+                  "key": "count",
+                  "value": "1"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "Descendants only (one <). Read total: 119."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 100', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(100));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.7 Every disorder of the kidney",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/< 64572001 |Disease| : 363698007 |Finding site| = << 64033007 |Kidney structure|&count=1&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/< 64572001 |Disease| : 363698007 |Finding site| = << 64033007 |Kidney structure|"
+                },
+                {
+                  "key": "count",
+                  "value": "1"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "Refinement by finding site. Expect 1,435."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 1000', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(1000));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.8 Map type 2 diabetes to ICD-10",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ConceptMap/$translate?url={{sct}}?fhir_cm=447562003&system={{sct}}&code=44054006",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ConceptMap",
+                "$translate"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_cm=447562003"
+                },
+                {
+                  "key": "system",
+                  "value": "{{sct}}"
+                },
+                {
+                  "key": "code",
+                  "value": "44054006"
+                }
+              ]
+            },
+            "description": "SNOMED CT to ICD-10 map (447562003). Read the map advice in the message: 'ALWAYS E11.9'."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('maps to E11.9', () => pm.expect(pm.response.text()).to.include('\"E11.9\"'));",
+                  "const adv = pm.response.json().parameter.find(x => x.name === 'message');",
+                  "if (adv) console.log('Map advice:', adv.valueString);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.9 Map hypertension to ICD-10",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ConceptMap/$translate?url={{sct}}?fhir_cm=447562003&system={{sct}}&code=38341003",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ConceptMap",
+                "$translate"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_cm=447562003"
+                },
+                {
+                  "key": "system",
+                  "value": "{{sct}}"
+                },
+                {
+                  "key": "code",
+                  "value": "38341003"
+                }
+              ]
+            },
+            "description": "Expect I10."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('maps to I10', () => pm.expect(pm.response.text()).to.include('\"I10\"'));",
+                  "const adv = pm.response.json().parameter.find(x => x.name === 'message');",
+                  "if (adv) console.log('Map advice:', adv.valueString);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.10 Procedures matching 'appendicectomy'",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/<< 71388002 |Procedure|&filter=appendicectomy&count=10&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<< 71388002 |Procedure|"
+                },
+                {
+                  "key": "filter",
+                  "value": "appendicectomy"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "Expect 11."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 1', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.11 Body sites matching 'left kidney'",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/<< 123037004 |Body structure|&filter=left kidney&count=10&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<< 123037004 |Body structure|"
+                },
+                {
+                  "key": "filter",
+                  "value": "left kidney"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "Laterality is part of the concept. Expect 13."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 1', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.12 Observations matching 'blood pressure'",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url={{sct}}?fhir_vs=ecl/<< 363787002 |Observable entity|&filter=blood pressure&count=10&displayLanguage=en-GB",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "{{sct}}?fhir_vs=ecl/<< 363787002 |Observable entity|"
+                },
+                {
+                  "key": "filter",
+                  "value": "blood pressure"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                },
+                {
+                  "key": "displayLanguage",
+                  "value": "en-GB"
+                }
+              ]
+            },
+            "description": "What was measured, for an observation record. Expect 83."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 1', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "9.13 Lab test (LOINC extension): HbA1c orders",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/fhir/ValueSet/$expand?url=http://snomed.info/sct/11010000107?fhir_vs=refset/635111010000100&filter=hemoglobin a1c&count=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "fhir",
+                "ValueSet",
+                "$expand"
+              ],
+              "query": [
+                {
+                  "key": "url",
+                  "value": "http://snomed.info/sct/11010000107?fhir_vs=refset/635111010000100"
+                },
+                {
+                  "key": "filter",
+                  "value": "hemoglobin a1c"
+                },
+                {
+                  "key": "count",
+                  "value": "10"
+                }
+              ]
+            },
+            "description": "The LOINC extension's orderable reference set. The edition is in the url: unversioned ECL searches the International Edition only. Expect 8."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "pm.test('expansion.total >= 1', () => pm.expect(pm.response.json().expansion.total).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

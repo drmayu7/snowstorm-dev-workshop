@@ -1,0 +1,42 @@
+# Snowstorm on a developer laptop -- workshop stack.
+# Based on IHTSDO/snowstorm docker-compose.yml (11.0.0), with the lessons from
+# the ARP deployment applied: published images pinned by version, ports bound
+# to localhost only, JVM options through JAVA_TOOL_OPTIONS.
+#
+#   docker compose up -d                       # 8 GB+ given to Docker
+#   ES_HEAP=2g SNOWSTORM_HEAP=2g docker compose up -d   # smaller laptops
+name: snowstorm-local
+
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.19.8
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - cluster.name=snowstorm-cluster
+      - ES_JAVA_OPTS=-Xms${ES_HEAP:-4g} -Xmx${ES_HEAP:-4g}
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 5s
+      retries: 60
+    ports:
+      - "127.0.0.1:9200:9200"
+
+  snowstorm:
+    image: snomedinternational/snowstorm:11.0.0
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      # The image runs java directly: JAVA_OPTS is ignored, this is not.
+      - JAVA_TOOL_OPTIONS=-Xms${SNOWSTORM_HEAP:-4g} -Xmx${SNOWSTORM_HEAP:-4g} --add-opens=java.base/java.util=ALL-UNNAMED
+    command:
+      - --elasticsearch.urls=http://elasticsearch:9200
+      - --snowstorm.rest-api.readonly=${READONLY:-false}
+    ports:
+      - "127.0.0.1:8080:8080"
+
+volumes:
+  es-data:

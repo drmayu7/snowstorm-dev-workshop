@@ -1,0 +1,3 @@
+# SNOMED CT release files are licensed: never commit them
+*.zip
+.DS_Store
